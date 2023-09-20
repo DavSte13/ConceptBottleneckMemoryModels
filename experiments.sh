@@ -1,80 +1,150 @@
-
-
 # ======================= Source code, datasets and preprocessing =======================
-# You should have `CUB_200_2011`, `CUB_processed`, `places365`, `pretrained`, `src` all available on the path during experiment runs.
-# Each python script outputs to a folder, change `-log_dir` or `-out_dir` if you would like different output folders.
+# Each python script generates. Setting -log_dir (and in some instances also -out_dir) can be used to customize the output folders.
+# This file contains scripts both for training of the base CBM and for the CB2M experiments.
+# The CB2M experiments were only done for the independent CBM training scheme, the joint training is kept for completeness
 
-# Experiments
+# The data generation generates 5 different folds for each dataset. The scripts here are exemplary for fold 0.
 
-## ======================= Main experiments =======================
-### Concept Model
-python3 experiments.py cub Bottleneck -log_dir results/ConceptModel_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -b 64 -weight_decay 0.00004 -lr 0.01 -scheduler_step 1000 -bottleneck
-python3 CUB/generate_new_data.py ExtractConcepts -model_path results/ConceptModel_fold_0/outputs/best_model.pth -out_dir ConceptModel1__PredConcepts -data_dir = data_CUB/CUB_processed/class_filtered_10
 
+
+## ======================= CUB =======================
+# The experiments on CUB are based on the paper "Concept Bottleneck Models" (Koh et al. 2020).
+# To perform the experiments, download the official CUB dataset (CUB_200_2011), pretrained inception v3 network (pretrained)
+# and the processed CUB data (CUB_processed) from their codalab sheet (https://worksheets.codalab.org/worksheets/0x362911581fcd4e048ddfd84f47203fd2)
+## ======================= Data Processing =======================
+python3 CUB/data_processing.py -save_dir data_CUB/CUB_processed/class_attr_data_10 -data_dir data_CUB/CUB_200_2011 -filter_concepts
+
+## ======================= CBM Training =======================
+### Bottleneck Model
+python3 experiments.py CUB Bottleneck -log_dir results/CUB/ConceptModel_fold_0/ -e 1000 -optimizer sgd -pretrained -use_aux -b 64 -weight_decay 0.00004 -lr 0.01 -bottleneck -data_dir data_CUB/CUB_processed/class_attr_data_10 -image_dir images -fold 0
 ### Independent Model
-python3 experiments.py cub Independent -log_dir results/IndependentModel/outputs/ -e 500 -optimizer sgd -no_img -b 64 -weight_decay 0.00005 -lr 0.001 -scheduler_step 1000
-python3 inference.py -model_dir results/ConceptModel_fold_0/outputs/best_model.pth -model_dir2 results/IndependentModel/outputs/best_model.pth -eval_data test -bottleneck -use_sigmoid -log_dir results/IndependentModel/outputs
+python3 experiments.py CUB Independent -log_dir results/CUB/IndependentModel_fold_0/ -e 500 -optimizer sgd -no_img -b 64 -weight_decay 0.00005 -lr 0.001 -data_dir data_CUB/CUB_processed/class_attr_data_10 -image_dir images -fold 0
+### Combined Inference
+python3 inference.py CUB -model_dir results/CUB/ConceptModel_fold_0/best_model.pth -model_dir2 results/CUB/IndependentModel_fold_0/best_model.pth -eval_data test -bottleneck -use_sigmoid -log_dir results/CUB/IndependentModel -data_dir data_CUB/CUB_processed/class_attr_data_10 -image_dir images -fold 0
 
-### Sequential Model
-python3 experiments.py cub Sequential -log_dir results/SequentialModel_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -data_dir ConceptModel1__PredConcepts -no_img -b 64 -weight_decay 0.00004 -lr 0.001 -scheduler_step 1000
-python3 inference.py -model_dir results/ConceptModel_fold_0/outputs/best_model.pth -model_dir2 results/SequentialModel_fold_0/outputs/best_model.pth -eval_data test -bottleneck -log_dir results/SequentialModel/outputs
-
-### Standard Model
-python3 experiments.py cub Joint -ckpt -log_dir results/Joint0Model_Seed1/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0 -normalize_loss -b 64 -weight_decay 0.00004 -lr 0.01 -scheduler_step 20 -end2end
-python3 inference.py -model_dir results/Joint0Model_Seed1/outputs/best_model.pth -eval_data test -log_dir results/Joint0Model/outputs
-
-### Joint Model
-#### Concept loss weight = 0.001
-python3 experiments.py cub Joint -ckpt -log_dir results/Joint0.001Model_Seed1/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0.001 -normalize_loss -b 64 -weight_decay 0.00004 -lr 0.01 -scheduler_step 20 -end2end
-python3 inference.py -model_dir results/Joint0.001Model_Seed1/outputs/best_model.pth -eval_data test -log_dir results/Joint0.001Model/outputs
+### Joint Model (not tested)
 #### Concept loss weight = 0.01
-python3 experiments.py cub Joint -ckpt -log_dir results/Joint0.01Model_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0.01 -normalize_loss -b 64 -weight_decay 0.0004 -lr 0.001 -scheduler_step 1000 -end2end
-python3 inference.py -model_dir results/Joint0.01Model_fold_0/outputs/best_model.pth -eval_data test -log_dir results/Joint0.01Model/outputs
+python3 experiments.py CUB Joint -ckpt -log_dir results/CUB/Joint0.01Model_fold_0/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0.01 -normalize_loss -b 64 -weight_decay 0.0004 -lr 0.001 -end2end -data_dir data_CUB/CUB_processed/class_attr_data_10 -image_dir images -fold 0
+python3 inference.py CUB -model_dir results/CUB/Joint0.01Model_fold_0/best_model.pth -eval_data test -log_dir results/CUB/Joint0.01Model -data_dir data_CUB/CUB_processed/class_attr_data_10 -image_dir images -fold 0
 #### Concept loss weight = 0.01, with Sigmoid
-python3 experiments.py cub Joint -ckpt -log_dir results/Joint0.01SigmoidModel_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0.01 -normalize_loss -b 64 -weight_decay 0.0004 -lr 0.001 -scheduler_step 1000 -end2end -use_sigmoid
-#### Concept loss weight = 0.1
-python3 experiments.py cub Joint -ckpt -log_dir results/Joint0.1Model_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0.1 -normalize_loss -b 64 -weight_decay 0.00004 -lr 0.01 -scheduler_step 1000 -end2end
-python3 inference.py -model_dir results/Joint0.1Model_fold_0/outputs/best_model.pth -eval_data test -log_dir results/Joint0.1Model/outputs
-#### Concept loss weight = 1
-python3 experiments.py cub Joint -ckpt -log_dir Joint1Model_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 1 -normalize_loss -b 64 -weight_decay 0.00004 -lr 0.01 -scheduler_step 1000 -end2end
-python3 inference.py -model_dir Joint1Model_fold_0/outputs/best_model.pth -eval_data test -log_dir Joint1Model/outputs
+python3 experiments.py CUB Joint -ckpt -log_dir results/CUB/Joint0.01SigmoidModel_fold_0/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0.01 -normalize_loss -b 64 -weight_decay 0.0004 -lr 0.001 -end2end -use_sigmoid -data_dir data_CUB/CUB_processed/class_attr_data_10 -image_dir images -fold 0
+python3 inference.py CUB -model_dir results/CUB/Joint0.01SigmoidModel_fold_0/best_model.pth -eval_data test -log_dir results/CUB/Joint0.01SigmoidModel -data_dir data_CUB/CUB_processed/class_attr_data_10 -image_dir images -fold 0
 
-## ======================= Test-time intervention experiments =======================
+
+## ======================= Preparations for CB2M =======================
+python3 evaluation/cb2m_experiments.py precompute CUB -model_dir results/CUB/ConceptModel_fold_0/best_model.pth -model_dir2 results/CUB/IndependentModel_fold_0/best_model.pth -bottleneck -use_sigmoid -data_dir data_CUB/CUB_processed/class_attr_data_10 -image_dir images -fold 0
+# -fold optional, otherwise generates results for all folds
+python3 evaluation/ttie_experiments.py hyperparameter CUB -log_dir results/TTIE_Independent -data_dir data_CUB/CUB_processed/class_attr_data_10
+## ======================= Detection Experiments =======================
+# For all in this part: -fold optional, otherwise generates results for all folds
+# Assumes models are stored in the here specified directories
+python3 evaluation/ttie_experiments.py detection CUB -log_dir results/TTIE_Independent -data_dir data_CUB/CUB_processed/class_attr_data_10
+python3 evaluation/ttie_experiments.py performance CUB -log_dir results/TTIE_Independent -data_dir data_CUB/CUB_processed/class_attr_data_10 -method ectp
+python3 evaluation/ttie_experiments.py performance CUB -log_dir results/TTIE_Independent -data_dir data_CUB/CUB_processed/class_attr_data_10 -method ectp -baseline random
+python3 evaluation/ttie_experiments.py performance CUB -log_dir results/TTIE_Independent -data_dir data_CUB/CUB_processed/class_attr_data_10 -method ectp -baseline softmax
+## ======================= Generalization Experiments =======================
+# for CUB: The augmented dataset variants are: jitter, blur, erase, salt, speckle
+python3 evaluation/ttie_experiments.py generalization CUB -model_dir2 results/CUB/IndependentModel_fold_0/best_model.pth -log_dir results/TTIE_Independent -data_dir data_CUB/CUB_processed/class_attr_data_10 -test_aug jitter -fold 0
+
+
+
+## ======================= Parity MNIST unbalanced =======================
+## ======================= Data Processing =======================
+python3 MNIST/data_processing.py MNIST -save_dir data_MNIST/MNIST_unbalanced -data_dir data_MNIST/MNIST -no_class 9 -include 250 -save_images
+
+## ======================= CBM Training =======================
+### Bottleneck Model
+python3 experiments.py MNIST Bottleneck -log_dir results/MNIST_unbalanced/ConceptModel_fold_0/ -e 10 -optimizer sgd -pretrained -b 64 -weight_decay 0.00004 -lr 0.001 -bottleneck -data_dir data_MNIST/MNIST_unbalanced -image_dir data_MNIST/MNIST -fold 0
 ### Independent Model
-python3 CUB/tti.py -model_dir results/ConceptModel_fold_0/outputs/best_model.pth -model_dir2 results/IndependentModel/outputs/best_model.pth -bottleneck -mode random -use_invisible -use_sigmoid -log_dir results/TTI__IndependentModel
+python3 experiments.py MNIST Independent -log_dir results/MNIST_unbalanced/IndependentModel_fold_0/ -e 10 -optimizer sgd -no_img -b 64 -weight_decay 0.00005 -lr 0.001 -data_dir data_MNIST/MNIST_unbalanced -image_dir data_MNIST/MNIST -fold 0
+### Combined Inference
+python3 inference.py MNIST -model_dir results/MNIST_unbalanced/ConceptModel_fold_0/best_model.pth -model_dir2 results/MNIST_unbalanced/IndependentModel_fold_0/best_model.pth -eval_data test -bottleneck -use_sigmoid -log_dir results/MNIST_unbalanced/IndependentModel -data_dir data_MNIST/MNIST_unbalanced -image_dir data_MNIST/MNIST -fold 0
 
-### Sequential Model
-python3 CUB/tti.py -model_dir results/ConceptModel_fold_0/outputs/best_model.pth -model_dir2 results/SequentialModel_fold_0/outputs/best_model.pth -bottleneck -mode random -use_invisible -log_dir results/TTI__SequentialModel
+## ======================= Preparations for CB2M =======================
+python3 evaluation/cb2m_experiments.py precompute MNIST_unbalanced -model_dir results/MNIST_unbalanced/ConceptModel_fold_0/best_model.pth -model_dir2 results/MNIST_unbalanced/IndependentModel_fold_0/best_model.pth -bottleneck -use_sigmoid -data_dir data_MNIST/MNIST_unbalanced -image_dir data_MNIST/MNIST -fold 0
+# -fold optional, otherwise generates results for all folds
+python3 evaluation/cb2m_experiments.py hyperparameter MNIST_unbalanced -log_dir results/TTIE_Independent -data_dir data_MNIST/MNIST_unbalanced
+## ======================= Detection Experiments =======================
+# For all in this part: -fold optional, otherwise generates results for all folds
+# Assumes models are stored in the here specified directories
+python3 evaluation/ttie_experiments.py detection MNIST_unbalanced -log_dir results/TTIE_Independent -data_dir data_MNIST/MNIST_unbalanced
+python3 evaluation/ttie_experiments.py performance MNIST_unbalanced -log_dir results/TTIE_Independent -method ectp -data_dir data_MNIST/MNIST_unbalanced
+python3 evaluation/ttie_experiments.py performance MNIST_unbalanced -log_dir results/TTIE_Independent -method ectp -data_dir data_MNIST/MNIST_unbalanced -baseline random
+python3 evaluation/ttie_experiments.py performance MNIST_unbalanced -log_dir results/TTIE_Independent -method ectp -data_dir data_MNIST/MNIST_unbalanced -baseline softmax
+## ======================= Generalization Experiments =======================
+python3 evaluation/ttie_experiments.py generalization MNIST_unbalanced -model_dir2 results/MNIST/IndependentModel_fold_0/best_model.pth -log_dir results/TTIE_Independent -fold 0 -data_dir data_MNIST/MNIST_unbalanced
 
-### Joint Model
-python3 CUB/tti.py -model_dir results/Joint0.01SigmoidModel_fold_0/outputs/best_model.pth -use_sigmoid -mode random -use_invisible -log_dir results/TTI__results/Joint0.01SigmoidModel
-python3 CUB/tti.py -model_dir results/Joint0.01Model_fold_0/outputs/best_model.pth -mode random -use_invisible -log_dir results/TTI__results/Joint0.01Model
 
-## ======================= Robustness experiments =======================
+
+## ======================= Generalization to SVHN =======================
+## ======================= Data Processing =======================
+# save images for the MNIST dataset does not require save_images if parity MNIST unbalanced has been done before
+python3 MNIST/data_processing.py MNIST -save_dir data_MNIST/MNIST_unbalanced -data_dir data_MNIST/MNIST -save_images
+python3 MNIST/data_processing.py SVHN -save_dir data_MNIST/SVHN_processed -data_dir data_MNIST/SVHN -save_images
+## ======================= CBM Training =======================
+### Bottleneck Model
+python3 experiments.py MNIST Bottleneck -log_dir results/MNIST/ConceptModel_fold_0/ -e 10 -optimizer sgd -pretrained -b 64 -weight_decay 0.00004 -lr 0.001 -bottleneck -data_dir data_MNIST/MNIST -image_dir data_MNIST/MNIST -fold 0
+### Independent Model
+python3 experiments.py MNIST Independent -log_dir results/MNIST/IndependentModel_fold_0/ -e 10 -optimizer sgd -no_img -b 64 -weight_decay 0.00005 -lr 0.001 -data_dir data_MNIST/MNIST -image_dir data_MNIST/MNIST -fold 0
+### Combined Inference
+python3 inference.py MNIST -model_dir results/MNIST/ConceptModel_fold_0/best_model.pth -model_dir2 results/MNIST/IndependentModel_fold_0/best_model.pth -eval_data test -bottleneck -use_sigmoid -log_dir results/MNIST/IndependentModel -data_dir data_MNIST/MNIST_unbalanced -image_dir data_MNIST/MNIST -fold 0
+## ======================= Preparations for CB2M =======================
+python3 evaluation/ttie_experiments.py precompute SVHN -model_dir results/MNIST/ConceptModel_fold_0/best_model.pth -model_dir2 results/MNIST/IndependentModel_fold_0/best_model.pth -bottleneck -use_sigmoid -data_dir data_MNIST/SVHN_processed -image_dir data_MNIST/SVHN -fold 0
+# -fold optional, otherwise generates results for all folds
+python3 evaluation/ttie_experiments.py hyperparameter SVHN -log_dir results/TTIE_Independent -data_dir data_MNIST/SVHN_processed
+## ======================= Generalization Experiments =======================
+python3 evaluation/ttie_experiments.py generalization SVHN -model_dir2 results/MNIST/IndependentModel_fold_0/best_model.pth -log_dir results/TTIE_Independent -fold 0 -data_dir data_MNIST/SVHN_processed
+
+
+
+## ======================= Parity Color MNIST =======================
+## ======================= Data Processing =======================
+python3 CUB/data_processing.py -save_dir data_MNIST/CMNIST_processed -data_dir data_MNIST/CMNIST -save_dir_unconf data_MNIST/CMNIST_unconf -save_images
+
+## ======================= CBM Training =======================
+### Bottleneck Model
+python3 experiments.py CMNIST Bottleneck -log_dir results/CMNIST/ConceptModel_fold_0/ -e 20 -optimizer sgd -pretrained -b 64 -weight_decay 0.00004 -lr 0.001 -bottleneck -data_dir data_MNIST/CMNIST_processed -image_dir data_MNIST/CMNIST -fold 0
+### Independent Model
+python3 experiments.py CMNIST Independent -log_dir results/CMNIST/IndependentModel_fold_0/ -e 20 -optimizer sgd -no_img -b 64 -weight_decay 0.00005 -lr 0.001 -image_dir data_MNIST/CMNIST -data_dir data_MNIST/CMNIST_processed -fold 0
+### Combined Inference
+python3 inference.py CMNIST -model_dir results/CMNIST/ConceptModel_fold_0/best_model.pth -model_dir2 results/CMNIST/IndependentModel_fold_0/best_model.pth -eval_data test -bottleneck -use_sigmoid -log_dir results/CMNIST/IndependentModel_fold_0 -image_dir data_MNIST/CMNIST -data_dir data_MNIST/CMNIST_processed -fold 0
+
+## ======================= Preparations for CB2M =======================
+python3 evaluation/ttie_experiments.py precompute CMNIST -model_dir results/CMNIST/ConceptModel_fold_0/best_model.pth -model_dir2 results/CMNIST/IndependentModel_fold_0/best_model.pth -bottleneck -use_sigmoid -data_dir data_MNIST/CMNIST_unconf -image_dir data_MNIST/CMNIST -fold 0
+# -fold optional, otherwise generates results for all folds
+python3 evaluation/ttie_experiments.py hyperparameter CMNIST -log_dir results/TTIE_Independent -data_dir data_MNIST/CMNIST_unconf
+## ======================= Detection Experiments =======================
+# For all in this part: -fold optional, otherwise generates results for all folds
+# Assumes models are stored in the here specified directories
+python3 evaluation/ttie_experiments.py detection CMNIST -log_dir results/TTIE_Independent -data_dir data_MNIST/CMNIST_unconf
+python3 evaluation/ttie_experiments.py performance CMNIST -log_dir results/TTIE_Independent -method ectp -data_dir data_MNIST/CMNIST_unconf
+python3 evaluation/ttie_experiments.py performance CMNIST -log_dir results/TTIE_Independent -method ectp -data_dir data_MNIST/CMNIST_unconf -baseline random
+python3 evaluation/ttie_experiments.py performance CMNIST -log_dir results/TTIE_Independent -method ectp -data_dir data_MNIST/CMNIST_unconf -baseline softmax
+## ======================= Generalization Experiments =======================
+python3 evaluation/ttie_experiments.py generalization CMNIST -model_dir2 results/CMNIST/IndependentModel_fold_0/best_model.pth -log_dir results/TTIE_Independent -fold 0 -data_dir data_MNIST/CMNIST_unconf
+
+
+
+
+
+## ======================= CUB distribution shift =======================
+## Original scripts from the CBM paper, using CUB with distribution shifts. Not used in the CB2M experiments right now
+# they require the places365 dataset
 ### Generate Adversarial Data
-python3 CUB/gen_cub_synthetic.py -cub_dir CUB_200_2011 -places_dir places365 -out_dir data_CUB/AdversarialData
+python3 CUB/gen_cub_synthetic.py -cub_dir data_CUB/CUB_200_2011 -places_dir data_CUB/places365 -out_dir data_CUB/AdversarialData
 ### Generate pickle files from the adversarial data
-python3 CUB/generate_new_data.py ChangeAdversarialDataDir -adv_data_dir data_CUB/AdversarialData/CUB_fixed -train_splits train val -out_dir data_CUB/CUB_processed/adversarial_fixed -data_dir data_CUB/CUB_processed/class_filtered_10
-python3 CUB/generate_new_data.py ChangeAdversarialDataDir -adv_data_dir data_CUB/AdversarialData/CUB_random -train_splits train val -out_dir data_CUB/CUB_processed/adversarial_random -data_dir data_CUB/CUB_processed/class_filtered_10
-python3 CUB/generate_new_data.py ChangeAdversarialDataDir -adv_data_dir data_CUB/AdversarialData/CUB_black -train_splits train val -out_dir data_CUB/CUB_processed/adversarial_black -data_dir data_CUB/CUB_processed/class_filtered_10
+python3 CUB/generate_new_data.py ChangeAdversarialDataDir -adv_data_dir data_CUB/AdversarialData/CUB_fixed -train_splits train val -out_dir data_CUB/CUB_processed/adversarial_fixed -data_dir data_CUB/CUB_processed/class_attr_data_10
+python3 CUB/generate_new_data.py ChangeAdversarialDataDir -adv_data_dir data_CUB/AdversarialData/CUB_random -train_splits train val -out_dir data_CUB/CUB_processed/adversarial_random -data_dir data_CUB/CUB_processed/class_attr_data_10
+python3 CUB/generate_new_data.py ChangeAdversarialDataDir -adv_data_dir data_CUB/AdversarialData/CUB_black -train_splits train val -out_dir data_CUB/CUB_processed/adversarial_black -data_dir data_CUB/CUB_processed/class_attr_data_10
 
 ### Concept Model
-python3 experiments.py cub Bottleneck -ckpt -log_dir ConceptAdversarialModel_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -b 64 -weight_decay 0.00004 -lr 0.01 -scheduler_step 1000 -bottleneck -image_dir data_CUB/AdversarialData/CUB_fixed/train -data_dir data_CUB/CUB_processed/adversarial_fixed
-python3 CUB/generate_new_data.py ExtractConcepts -model_path ConceptAdversarialModel_fold_0/outputs/best_model.pth -data_dir data_CUB/CUB_processed/adversarial_fixed -out_dir ConceptAdversarialModel1__PredConcepts -data_dir data_CUB/CUB_processed/adversarial_fixed
-
+python3 experiments.py CUB Bottleneck -ckpt -log_dir results/CUB/ConceptAdversarialModel_fold_0/ -e 1000 -optimizer sgd -pretrained -use_aux -b 64 -weight_decay 0.00004 -lr 0.01 -bottleneck -image_dir data_CUB/AdversarialData/CUB_fixed/train -data_dir data_CUB/CUB_processed/adversarial_fixed
 ### Independent Model
-python3 experiments.py cub Independent -log_dir IndependentAdversarialModel/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -no_img -b 64 -weight_decay 0.00005 -lr 0.001 -scheduler_step 1000 -image_dir data_CUB/AdversarialData/CUB_fixed/train -use_sigmoid -data_dir data_CUB/CUB_processed/adversarial_fixed
-python3 inference.py -model_dir ConceptAdversarialModel_fold_0/outputs/best_model.pth -model_dir2 IndependentAdversarialModel/outputs/best_model.pth -eval_data test -bottleneck -image_dir data_CUB/AdversarialData/CUB_fixed/test/ -use_sigmoid -log_dir IndependentAdversarialModel/outputs -data_dir data_CUB/CUB_processed/adversarial_fixed
-
-### Sequential Model
-python3 experiments.py cub Sequential -log_dir SequentialAdversarialModel_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -data_dir ConceptAdversarialModel1__PredConcepts -no_img -b 64 -weight_decay 0.00004 -lr 0.001 -scheduler_step 1000 -image_dir data_CUB/AdversarialData/CUB_fixed/train -data_dir data_CUB/CUB_processed/adversarial_fixed
-python3 inference.py -model_dir ConceptAdversarialModel_fold_0/outputs/best_model.pth -model_dir2 SequentialAdversarialModel_fold_0/outputs/best_model.pth -eval_data test -bottleneck -image_dir data_CUB/AdversarialData/CUB_fixed/test/ -log_dir SequentialAdversarialModel/outputs -data_dir data_CUB/CUB_processed/adversarial_fixed
-
-### Standard Model
-python3 experiments.py cub Joint -ckpt -log_dir results/Joint0AdversarialModel_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0 -normalize_loss -b 64 -weight_decay 0.0004 -lr 0.001 -scheduler_step 1000 -end2end -image_dir data_CUB/AdversarialData/CUB_fixed/train -data_dir data_CUB/CUB_processed/adversarial_fixed
-python3 inference.py -model_dir results/Joint0AdversarialModel_fold_0/outputs/best_model.pth -eval_data test -image_dir data_CUB/AdversarialData/CUB_fixed/test/ -log_dir results/Joint0AdversarialModel/outputs -data_dir data_CUB/CUB_processed/adversarial_fixed
+python3 experiments.py CUB Independent -log_dir results/CUB/IndependentAdversarialModel/ -e 1000 -optimizer sgd -pretrained -use_aux -no_img -b 64 -weight_decay 0.00005 -lr 0.001 -image_dir data_CUB/AdversarialData/CUB_fixed/train -use_sigmoid -data_dir data_CUB/CUB_processed/adversarial_fixed
+### Combined Inference
+python3 inference.py CUB -model_dir results/CUB/ConceptAdversarialModel_fold_0/best_model.pth -model_dir2 results/CUB/IndependentAdversarialModel/best_model.pth -eval_data test -bottleneck -image_dir data_CUB/AdversarialData/CUB_fixed/test/ -use_sigmoid -log_dir results/CUB/IndependentAdversarialModel -data_dir data_CUB/CUB_processed/adversarial_fixed
 
 ### Joint Model
-python3 experiments.py cub Joint -ckpt -log_dir results/Joint0.01AdversarialModel_fold_0/outputs/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0.01 -normalize_loss -b 64 -weight_decay 0.0004 -lr 0.001 -scheduler_step 1000 -end2end -image_dir data_CUB/AdversarialData/CUB_fixed/train -data_dir data_CUB/CUB_processed/adversarial_fixed
-python3 inference.py -model_dir results/Joint0.01AdversarialModel_fold_0/outputs/best_model.pth -eval_data test -image_dir data_CUB/AdversarialData/CUB_fixed/test/ -log_dir results/Joint0.01AdversarialModel/outputs -data_dir data_CUB/CUB_processed/adversarial_fixed
+python3 experiments.py cub Joint -ckpt -log_dir results/CUB/Joint0.01AdversarialModel_fold_0/ -e 1000 -optimizer sgd -pretrained -use_aux -attr_loss_weight 0.01 -normalize_loss -b 64 -weight_decay 0.0004 -lr 0.001 -end2end -image_dir data_CUB/AdversarialData/CUB_fixed/train -data_dir data_CUB/CUB_processed/adversarial_fixed
+python3 inference.py CUB -model_dir results/CUB/Joint0.01AdversarialModel_fold_0/best_model.pth -eval_data test -image_dir data_CUB/AdversarialData/CUB_fixed/test/ -log_dir results/CUB/Joint0.01AdversarialModel -data_dir data_CUB/CUB_processed/adversarial_fixed
 

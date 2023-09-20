@@ -7,11 +7,14 @@ import numpy as np
 import torchvision
 import torchvision.transforms as T
 from os.path import join
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils import generate_kfold_sets
 
 
-def convert_loader(loader, split, save_images=True):
+def convert_loader(data_dir, loader, split, save_images=True):
     """
     Transforms the data given a dataloader to a pickle file for storage
     """
@@ -74,8 +77,8 @@ def extract_data(data_dir, dataset, no_class=None, include=0, save_images=True):
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=1)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=1)
     # prepare data for pickl
-    pkl_data_train = convert_loader(train_loader, 'train', save_images=save_images)
-    pkl_data_test = convert_loader(test_loader, 'test', save_images=save_images)
+    pkl_data_train = convert_loader(data_dir, train_loader, 'train', save_images=save_images)
+    pkl_data_test = convert_loader(data_dir, test_loader, 'test', save_images=save_images)
 
     # randomly shuffle the data points
     random.shuffle(pkl_data_train)

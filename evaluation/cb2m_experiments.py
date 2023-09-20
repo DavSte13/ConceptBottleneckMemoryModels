@@ -7,6 +7,9 @@ import sklearn
 from scipy.special import softmax
 import rtpt
 import argparse
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cb2m_utils import *
 from cb2m.closer_metrics import ectp_precompute
 from cb2m.memory_module import MemoryModule
@@ -610,15 +613,9 @@ def run_experiments(args):
         The last two are before any interventions are done.
     """
     rtpt.start()
-    if args.dataset == 'CUB':
-        from CUB.config import N_ATTRIBUTES
-    elif args.dataset == 'CMNIST':
-        from CMNIST.config import N_ATTRIBUTES
-    elif 'MNIST' in args.dataset or args.dataset == 'SVHN':
-        from MNIST.config import N_ATTRIBUTES
 
     torch.manual_seed(args.seed)
-    numpy.random.seed(args.seed)
+    np.random.seed(args.seed)
     random.seed(args.seed)
     if args.exp == 'precompute':
         data_precomputation(args)
@@ -714,4 +711,10 @@ def run_experiments(args):
 
 if __name__ == '__main__':
     args = parse_arguments()
+    if args.dataset == 'CUB':
+        from CUB.config import N_ATTRIBUTES
+    elif args.dataset == 'CMNIST':
+        from CMNIST.config import N_ATTRIBUTES
+    elif 'MNIST' in args.dataset or args.dataset == 'SVHN':
+        from MNIST.config import N_ATTRIBUTES
     run_experiments(args)

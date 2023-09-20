@@ -11,6 +11,9 @@ import numpy as np
 from collections import defaultdict as ddict
 from os import listdir
 from os.path import isfile, isdir, join
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils import generate_kfold_sets
 
@@ -27,14 +30,14 @@ def extract_data(data_dir, filter_concepts):
     attribute_labels_all = ddict(list)  # map: image id -> list of attribute labels
     attribute_certainties_all = ddict(list)  # map: image id -> list of attribute certainties
     # 1 = not visible, 2 = guessing, 3 = probably, 4 = definitely
-    with open(join(cwd, data_dir + '/attributes/image_attribute_labels.txt'), 'r') as f:
+    with open(join(data_dir, 'attributes/image_attribute_labels.txt'), 'r') as f:
         for line in f:
             file_idx, attribute_idx, attribute_label, attribute_certainty = line.strip().split()[:4]
             attribute_labels_all[int(file_idx)].append(int(attribute_label))
             attribute_certainties_all[int(file_idx)].append(int(attribute_certainty))
 
     is_train_test = dict()  # map from image id to 0 / 1 (1 = train)
-    with open(join(cwd, data_dir + '/train_test_split.txt'), 'r') as f:
+    with open(join(data_dir, 'train_test_split.txt'), 'r') as f:
         for line in f:
             idx, is_train = line.strip().split()
             is_train_test[int(idx)] = int(is_train)
@@ -86,7 +89,7 @@ def extract_data(data_dir, filter_concepts):
                   244, 249, 253, 254, 259, 260, 262, 268, 274, 277, 283, 289, 292, 293, 294, 298, 299, 304, 305, 308,
                   309, 310, 311]
 
-    if filter_attributes:
+    if filter_concepts:
         # For each Class, attribute combination: Does the attribute occur for the majority of examples (1) or not (0)
         class_attr_max_label = np.argmax(class_attr_count, axis=2)
         class_attr_min_label = np.argmin(class_attr_count, axis=2)
@@ -134,22 +137,32 @@ if __name__ == "__main__":
     parser.add_argument('-filter_concepts', help='Filter concepts to only include attributes with occurrences in '
                                                  'at least 10 classes', action='store_true')
     args = parser.parse_args()
+
     train_data, val_data, test_data, mask = extract_data(args.data_dir, args.filter_concepts)
 
-    for dataset in ['train', 'val', 'test']:
-        print("Processing %s set" % dataset)
-        f = open(join(args.save_dir, (dataset + '.pkl')), 'wb')
-        if 'train' in dataset:
-            pickle.dump(train_data, f)
-        elif 'val' in dataset:
-            pickle.dump(val_data, f)
-        else:
-            pickle.dump(test_data, f)
-        f.close()
+    if not os.path.exists(os.path.join(args.save_dir, 'test.pkl')):
+
+        os.makedirs(args.save_dir, exist_ok=True)
+        for dataset in ['train_0', 'val_0', 'test']:
+            print("Processing %s set" % dataset)
+            f = open(join(args.save_dir, (dataset + '.pkl')), 'wb')
+            if 'train' in dataset:
+                pickle.dump(train_data, f)
+            elif 'val' in dataset:
+                pickle.dump(val_data, f)
+            else:
+                pickle.dump(test_data, f)
+            f.close()
+    else:
+        if os.path.exists(os.path.join(args.save_dir, 'train.pkl')):
+            os.rename(os.path.join(args.save_dir, 'train.pkl'), os.path.join(args.save_dir, 'train_0.pkl'))
+        if os.path.exists(os.path.join(args.save_dir, 'val.pkl')):
+            os.rename(os.path.join(args.save_dir, 'val.pkl'), os.path.join(args.save_dir, 'val_0.pkl'))
+        print("Data already present")
 
     with open(join(args.save_dir, 'mask.pkl'), 'wb') as f:
         pickle.dump(mask, f)
 
     # generate training and validation sets for the other folds.
-    generate_kfold_sets(base_dir=args.save_dir, save_dir=args.save_dir, seed=args.seed)
+    generate_kfold_sets(base_dir=args.save_dir, save_dir=args.save_dir, seed=0)
     

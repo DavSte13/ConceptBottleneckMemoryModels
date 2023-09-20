@@ -159,7 +159,7 @@ def eval_inference(args, use_encoding=False, model_training=True):
 
         class_acc_meter.update(class_acc, inputs.size(0))
 
-        print(f'Average class accuracy: {class_acc_meter.avg:.5f}')
+    print(f'Average class accuracy: {(class_acc_meter.avg).item():.5f}')
 
     all_class_outputs_int = np.array(all_class_outputs) >= 0.5
     _, report = multiclass_metric(all_class_outputs_int, all_class_labels)

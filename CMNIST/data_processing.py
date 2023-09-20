@@ -8,6 +8,9 @@ import torchvision.transforms as T
 from os.path import join
 import numpy as np
 from colour import Color
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils import generate_kfold_sets
 
