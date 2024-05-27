@@ -7,6 +7,8 @@ from inference import eval_inference
 from utils import get_attribute_groupings
 from cb2m.closer_metrics import rand, ucp, lcp, ectp, ectp_precompute
 
+from sklearn.metrics import confusion_matrix
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -63,7 +65,10 @@ def prepare_data(data_splits, args, model2, n_attributes):
         train_uncertainty_attr_labels = []
         for d in train_data:
             attr_certainty = np.array(d['attribute_certainty'])
-            train_uncertainty_attr_labels.extend(list(attr_certainty[mask]))
+            if len(mask) > len(attr_certainty):
+                train_uncertainty_attr_labels.extend(list(attr_certainty[mask]))
+            else:
+                train_uncertainty_attr_labels.extend(attr_certainty)
 
         # evaluate the bottleneck model
         args.eval_data = f'train'

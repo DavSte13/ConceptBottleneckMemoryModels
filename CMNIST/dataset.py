@@ -20,7 +20,7 @@ class CMNISTDataset(Dataset):
     Modified for the parity Color MNIST task.
     """
 
-    def __init__(self, pkl_file_paths, no_img, image_dir, transform=None):
+    def __init__(self, pkl_file_paths, no_img, image_dir, transform=None, confounded=False):
         """
         Arguments:
         pkl_file_paths: list of full path to all the pkl data
@@ -63,7 +63,7 @@ class CMNISTDataset(Dataset):
         return img, class_label, attr_label
 
 
-def load_data(pkl_paths, model_training, no_img, batch_size, image_dir='data_MNIST/CMNIST'):
+def load_data(pkl_paths, model_training, no_img, batch_size, image_dir='data_MNIST/CMNIST', data_frac=1.0):
     """
     Loads data with transformations applied.
     """
@@ -84,6 +84,10 @@ def load_data(pkl_paths, model_training, no_img, batch_size, image_dir='data_MNI
     g = torch.Generator()
     g.manual_seed(0)
 
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last,
-                        worker_init_fn=seed_worker, generator=g)
+    indices = list(range(len(dataset)))
+    subset_indices = random.sample(indices, int(data_frac * len(indices)))
+    sampler = torch.utils.data.sampler.SubsetRandomSampler(subset_indices)
+
+    loader = DataLoader(dataset, batch_size=batch_size, drop_last=drop_last,
+                        worker_init_fn=seed_worker, generator=g, sampler=sampler)
     return loader

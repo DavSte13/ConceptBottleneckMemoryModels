@@ -219,9 +219,10 @@ if __name__ == '__main__':
                                                     '(None equals to 0 the default split).')
     parser.add_argument('-use_sigmoid', help='Whether to include sigmoid activation before using concepts to predict Y.'
                                              ' For end2end & bottleneck model', action='store_true')
+    parser.add_argument('-noisy_transform', choices=['jitter', 'blur', 'erase', 'salt', 'speckle'], default=None,
+                        help='Dataset augmentation for CUB')
     args = parser.parse_args()
     args.batch_size = 16
-    args.noisy_transform = None
 
     eval_inference(args)
 

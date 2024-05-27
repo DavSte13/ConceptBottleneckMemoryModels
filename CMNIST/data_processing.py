@@ -73,7 +73,7 @@ def extract_data(data_dir, save_images=True):
 
             data_dict = {
                 'id': idx,
-                'img_path': save_image_path,
+                'img_path': img_path,
             }
             # class label 0: even, 1: odd
             if label in [0, 2, 4, 6, 8]:
@@ -127,6 +127,8 @@ def generate_val_unconf(base_dir, save_dir, seed):
     save_dir and base_dir have to be different to avoid overwriting of files.
     """
     assert base_dir != save_dir, "Save dir and base dir have to be different to avoid overwriting of files."
+
+    os.makedirs(save_dir, exist_ok=True)
     random.seed(seed)
     for i in range(5):
         # load the test data

@@ -1,7 +1,8 @@
 # ConceptBottleneckMemoryModels
 
-This repository contains code for the Paper "Learning to Intervene on Concept Bottlenecks". It provides an implementation of concept bottleneck memory models (CB2M) based on concept bottleneck models (CBM).
-The repository furthermore contains code to evaluate CB2M on several different datasets: CUB, Parity MNIST, Parity Color MNIST and Parity SVHN. 
+This repository contains code for the Paper ["Learning to Intervene on Concept Bottlenecks"](https://arxiv.org/abs/2308.13453). It provides an implementation of concept bottleneck memory models (CB2M). CB2M are a flexible extension for any kind of concept bottleneck model (here presented exemplarily for CBMs by Koh et al. 2020). It enables detection of potential model mistakes (for human inspection and intervention). Furthermore, CB2M moves beyond one-time interventions by memorizing previous human feedback and automatically applying it again when applicable. 
+
+<img src="method.png" alt="CB2M overview" height="250">
 
 ## Installation:
 
@@ -19,3 +20,15 @@ To perform the experiments desribed in the paper, the script `experiments.sh` is
 * Generalization: Evaluate the generalization of interventions to new data points.
 
 Further details about run parameters can be found in `experiments.sh` and in the respective files.
+
+## Citation
+
+If this code is helpful to you, consider citing us.
+```
+@article{steinmann2023learning,
+  title={Learning to intervene on concept bottlenecks},
+  author={Steinmann, David and Stammer, Wolfgang and Friedrich, Felix and Kersting, Kristian},
+  journal={arXiv preprint arXiv:2308.13453},
+  year={2023}
+}
+

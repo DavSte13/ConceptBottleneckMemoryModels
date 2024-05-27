@@ -44,7 +44,8 @@ python3 evaluation/ttie_experiments.py performance CUB -log_dir results/TTIE_Ind
 python3 evaluation/ttie_experiments.py performance CUB -log_dir results/TTIE_Independent -data_dir data_CUB/CUB_processed/class_attr_data_10 -method ectp -baseline softmax
 ## ======================= Generalization Experiments =======================
 # for CUB: The augmented dataset variants are: jitter, blur, erase, salt, speckle
-python3 evaluation/ttie_experiments.py generalization CUB -model_dir2 results/CUB/IndependentModel_fold_0/best_model.pth -log_dir results/TTIE_Independent -data_dir data_CUB/CUB_processed/class_attr_data_10 -test_aug jitter -fold 0
+# use a different fraction of the interventional data by changing the data_frac parameter (e.g. to 0.5)
+python3 evaluation/ttie_experiments.py generalization CUB -model_dir2 results/CUB/IndependentModel_fold_0/best_model.pth -log_dir results/TTIE_Independent -data_dir data_CUB/CUB_processed/class_attr_data_10 -test_aug jitter -fold 0 -data_frac 1.0
 
 
 
@@ -59,6 +60,8 @@ python3 experiments.py MNIST Bottleneck -log_dir results/MNIST_unbalanced/Concep
 python3 experiments.py MNIST Independent -log_dir results/MNIST_unbalanced/IndependentModel_fold_0/ -e 10 -optimizer sgd -no_img -b 64 -weight_decay 0.00005 -lr 0.001 -data_dir data_MNIST/MNIST_unbalanced -image_dir data_MNIST/MNIST -fold 0
 ### Combined Inference
 python3 inference.py MNIST -model_dir results/MNIST_unbalanced/ConceptModel_fold_0/best_model.pth -model_dir2 results/MNIST_unbalanced/IndependentModel_fold_0/best_model.pth -eval_data test -bottleneck -use_sigmoid -log_dir results/MNIST_unbalanced/IndependentModel -data_dir data_MNIST/MNIST_unbalanced -image_dir data_MNIST/MNIST -fold 0
+### Finetuning the CBM on the validation set
+python3 experiments.py MNIST Finetune -log_dir results/MNIST_unbalanced/ConceptModel_fold_0_finetuned/ -model_dir results/MNIST_unbalanced/ConceptModel_fold_0/best_model.pth -e 5 -optimizer sgd -b 64 -weight_decay 0.00004 -lr 0.001 -bottleneck -data_dir data_MNIST/MNIST_unbalanced/ -image_dir data_MNIST/MNIST -train_file val -val_file val -fold 0
 
 ## ======================= Preparations for CB2M =======================
 python3 evaluation/cb2m_experiments.py precompute MNIST_unbalanced -model_dir results/MNIST_unbalanced/ConceptModel_fold_0/best_model.pth -model_dir2 results/MNIST_unbalanced/IndependentModel_fold_0/best_model.pth -bottleneck -use_sigmoid -data_dir data_MNIST/MNIST_unbalanced -image_dir data_MNIST/MNIST -fold 0

@@ -25,8 +25,8 @@ def data_precomputation(args):
     """
     print(f"\n\nPrecompute data for {args.dataset}, fold: {args.fold}")
     if args.dataset == 'CUB':
-        noisy = True
-        shifted = True
+        noisy = False
+        shifted = False
     else:
         noisy = False
         shifted = False
@@ -281,6 +281,8 @@ def run_detection_experiment(args):
     cb2m_f1 = 2 * cb2m_prec * cb2m_rec / (cb2m_prec + cb2m_rec)
     # auroc and aupr scores
     cb2m_score = [memory_module.closest_distance(k) for k in test_info['encodings']]
+    # normalize the cb2, score to be within [0, 1]
+    cb2m_score = (cb2m_score - np.ones(len(cb2m_score)) * min(cb2m_score)) / (max(cb2m_score) - min(cb2m_score))
     cb2m_auroc = sklearn.metrics.roc_auc_score(y_true, cb2m_score)
     precision, recall, thresholds = sklearn.metrics.precision_recall_curve(y_true, cb2m_score)
     cb2m_aupr = sklearn.metrics.auc(recall, precision)
@@ -315,6 +317,12 @@ def run_detection_experiment(args):
     precision, recall, thresholds = sklearn.metrics.precision_recall_curve(y_true, y_score_softmax)
     soft_aupr = sklearn.metrics.auc(recall, precision)
 
+    # combined softmax and cb2m:
+    combined_score = np.maximum(cb2m_score, y_score_softmax)
+    combined_auroc = sklearn.metrics.roc_auc_score(y_true, combined_score)
+    precision, recall, thresholds = sklearn.metrics.precision_recall_curve(y_true, combined_score)
+    combined_aupr = sklearn.metrics.auc(recall, precision)
+
     # Report results
     print(f"Detection on test set (fold: {args.fold}):")
     print(f"Num instances: {len(intervention_ids)}")
@@ -324,8 +332,10 @@ def run_detection_experiment(args):
           f"AUROC: {soft_auroc:.4f}\tAUPR: {soft_aupr:.4f}")
     print(f"memory: \t\tPrecision: {cb2m_prec:.4f} \tRecall: {cb2m_rec:.4f} \tF1: {cb2m_f1:.4f}\t"
           f"AUROC: {cb2m_auroc:.4f}\tAUPR: {cb2m_aupr:.4f}")
+    print(f"Combined: \t\tPrecision: {0:.4f} \tRecall: {0:.4f} \tF1: {0:.4f}\t"
+          f"AUROC: {combined_auroc:.4f}\tAUPR: {combined_aupr:.4f}")
 
-    return (rand_auroc, rand_aupr), (soft_auroc, soft_aupr), (cb2m_auroc, cb2m_aupr)
+    return (rand_auroc, rand_aupr), (soft_auroc, soft_aupr), (cb2m_auroc, cb2m_aupr), (combined_auroc, combined_aupr)
 
 
 def run_performance_experiment(args):
@@ -374,6 +384,11 @@ def run_performance_experiment(args):
         class_softmax = softmax(test_info['class_logits'], axis=1)
         max_val_softmax = np.max(class_softmax, axis=1)
         intervention_ids = np.argwhere(max_val_softmax < softmax_t).flatten()
+    elif args.baseline == 'combined':
+        class_softmax = softmax(test_info['class_logits'], axis=1)
+        max_val_softmax = np.max(class_softmax, axis=1)
+        soft_ids = np.argwhere(max_val_softmax < softmax_t).flatten()
+        intervention_ids = list(set(intervention_ids).union(soft_ids))
 
     results = {}
     # compute class correct and wrong predictions for the whole test set and only selected instances for interventions
@@ -426,7 +441,7 @@ def run_performance_experiment(args):
     else:   # single method specified
         methods = [args.method]
 
-    for n_concepts in range(1, n_groups + 1):
+    for n_concepts in [0, 10, n_groups]: #range(1, n_groups + 1):
         n_results = {}
         for method in methods:
             global_interventions = select_interventions(intervention_ids, test_info, attr_group_dict, method,
@@ -497,6 +512,9 @@ def generalization_experiment(args):
     model2.to(device)
 
     intervention_ids = select_intervention_instances_perfect(val_info)
+    if args.data_frac < 1.0:
+        k_elems = int(len(intervention_ids) * args.data_frac)
+        intervention_ids = random.sample(intervention_ids, k_elems)
 
     # Fill CIR with the interventions on the selected test_examples
     # get ectp info
@@ -539,14 +557,16 @@ def generalization_experiment(args):
 
     # Record results
     # log the results
-    results[-1] = {'setup_t': args.setup_t,
-                   'select_t': args.select_t,
-                   'k': args.k,
-                   'general_t': args.general_t,
+    results[-1] = {'setup_t': setup_t,
+                   'select_t': select_t,
+                   'k': k,
+                   'general_t': general_t,
                    'test_aug': args.test_aug}
 
-
-    file_name = f'generalization{fold}_{args.test_aug}.json'
+    if args.data_frac != 1.0:
+        file_name = f'generalization{fold}_{args.test_aug}_{args.data_frac*100}.json'
+    else:
+        file_name = f'generalization{fold}_{args.test_aug}.json'
     os.makedirs(os.path.join(args.log_dir, args.dataset), exist_ok=True)
     with open(os.path.join(args.log_dir, args.dataset, file_name), 'w') as fi:
         json.dump(results, fi)
@@ -594,6 +614,10 @@ def parse_arguments():
     parser.add_argument('-test_shift', help='Evaluate the results under a shift in test distribution. Can be one of:'
                                             'fixed, random, black.')
     parser.add_argument('-fold', default=0, help='Evaluation fold (for RQ1, RQ2, RQ4). 0 to 4.')
+
+    parser.add_argument('-data_frac', type=float, default=1.0, help="Fraction of the val data which CB2M"
+                                                                    "can see for the generalization experiments.")
+
     args = parser.parse_args()
 
     return args
@@ -631,7 +655,7 @@ def run_experiments(args):
                 if args.dataset == 'SVHN':
                     dataset = 'MNIST'
                 else:
-                    dataset = 'MNIST'
+                    dataset = args.dataset
                 args.model_dir2 = f'results/{dataset}/IndependentModel_fold_{f}/best_model.pth'
                 opt_soft = hyperparameter_softmax(args)
                 opt_k, opt_t_set, opt_t_sel = hyperparameter_selection(args)
@@ -660,7 +684,7 @@ def run_experiments(args):
                 else:
                     dataset = args.dataset
                 args.model_dir2 = f'results/{dataset}/IndependentModel_fold_{f}/best_model.pth'
-                r_rand, r_soft, r_cb2m = run_detection_experiment(args)
+                r_rand, r_soft, r_cb2m, r_comb = run_detection_experiment(args)
                 f_results = {
                     'rand_auroc': r_rand[0],
                     'rand_aupr': r_rand[1],
@@ -668,6 +692,8 @@ def run_experiments(args):
                     'soft_aupr': r_soft[1],
                     'cb2m_auroc': r_cb2m[0],
                     'cb2m_aupr': r_cb2m[1],
+                    'combined_auroc': r_comb[0],
+                    'combined_aupr': r_comb[1],
                 }
                 results[f] = f_results
             shift = '' if args.test_shift is None else f'_{args.test_shift}'

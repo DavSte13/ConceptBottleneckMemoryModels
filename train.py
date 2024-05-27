@@ -59,7 +59,6 @@ def run_epoch(model, optimizer, loader, loss_meter, acc_meter, criterion, attr_c
         model.train()
     else:
         model.eval()
-
     for _, data in enumerate(loader):
         # extract inputs, labels and attr_labels
         inputs, labels, attr_labels = data
@@ -134,13 +133,16 @@ def train(model, args):
     torch.set_num_threads(50)
     rtpt_measure.start()
     fold = '' if args.fold is None else f'_{args.fold}'
-    train_data_path = os.path.join(BASE_DIR, args.data_dir, f'train{fold}.pkl')
-    val_data_path = os.path.join(BASE_DIR, args.data_dir, f'val{fold}.pkl')
-
-    if os.path.exists(args.log_dir):  # job restarted by cluster
-        for f in os.listdir(args.log_dir):
-            os.remove(os.path.join(args.log_dir, f))
+    if args.train_file is not None:
+        train_data_path = os.path.join(BASE_DIR, args.data_dir, f'{args.train_file}{fold}.pkl')
     else:
+        train_data_path = os.path.join(BASE_DIR, args.data_dir, f'train{fold}.pkl')
+    if args.val_file is not None:
+        val_data_path = os.path.join(BASE_DIR, args.data_dir, f'{args.val_file}{fold}.pkl')
+    else:
+        val_data_path = os.path.join(BASE_DIR, args.data_dir, f'val{fold}.pkl')
+
+    if not os.path.exists(args.log_dir):
         os.makedirs(args.log_dir)
 
     logger = Logger(os.path.join(args.log_dir, 'log.txt'))
@@ -178,11 +180,11 @@ def train(model, args):
 
     if args.ckpt:  # retraining
         train_loader = load_data([train_data_path, val_data_path], True, args.no_img, args.batch_size,
-                                 image_dir=args.image_dir)
+                                 image_dir=args.image_dir, confounded=args.confounded)
         val_loader = None
     else:
-        train_loader = load_data([train_data_path], True, args.no_img, args.batch_size, image_dir=args.image_dir)
-        val_loader = load_data([val_data_path], False, args.no_img, args.batch_size, image_dir=args.image_dir)
+        train_loader = load_data([train_data_path], True, args.no_img, args.batch_size, image_dir=args.image_dir, confounded=args.confounded)
+        val_loader = load_data([val_data_path], False, args.no_img, args.batch_size, image_dir=args.image_dir, confounded=args.confounded)
 
     best_val_epoch = -1
     best_val_acc = 0
@@ -282,12 +284,18 @@ def train_joint(args):
                         n_attributes=N_ATTRIBUTES, use_sigmoid=args.use_sigmoid)
     train(model, args)
 
+def finetune_bottleneck(args):
+    assert args.model_dir is not None, "Finetuning requires a model directory to load the model from."
+    model = torch.load(args.model_dir)
+
+    train(model, args)
+
 
 def parse_arguments():
     # Get argparse configs from user
     parser = argparse.ArgumentParser(description='CUB Training')
     parser.add_argument('dataset', type=str, help='Name of the dataset.', choices=['CUB', 'MNIST', 'CMNIST'])
-    parser.add_argument('exp', type=str, choices=['Bottleneck', 'Independent', 'Joint'],
+    parser.add_argument('exp', type=str, choices=['Bottleneck', 'Independent', 'Joint', 'Finetune'],
                         help='Name of experiment to run.')
 
     parser.add_argument('-log_dir', default=None, help='where the trained model is saved')
@@ -319,6 +327,14 @@ def parse_arguments():
                              'For end2end & bottleneck model')
     parser.add_argument('-fold', default=None, help='Evaluation fold (for RQ1, RQ2, RQ4). None or 0 to 4 '
                                                     '(None is the same as 0, the default split).')
+    
+    parser.add_argument('-model_dir', default=None, help='Enables finetuning the model from the given directory.')
+    parser.add_argument('-train_file', default=None, help='Training data (if not standard data setting)')
+    parser.add_argument('-val_file', default=None, help='Validation data (if not standard data setting)')
+    parser.add_argument('-data_frac', default=1.0, help='Finetuning on a fraction of the data.', type=float)
+    parser.add_argument('-confounded', action='store_true', help='if set, uses the confounded CUB images.')
+
+
     args = parser.parse_args()
 
     return args
